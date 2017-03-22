@@ -17,10 +17,15 @@ def run_sender(username, host, port, q):
                 q.put("quit")
                 app_message = write_app_message(username, "LEAVE", "left chat")
                 sender.sendto(app_message, (host, port))
+                app_message = write_app_message(username, "QUIT", "left chat")
+                sender.sendto(app_message, ('', port))
                 break
-            app_message = write_app_message(username, "TALK", user_message)
-            sender.sendto(app_message, (host, port))
-            sleep(1)
+            elif user_message == "/who":
+                app_message = write_app_message(username, "WHO", "")
+                sender.sendto(app_message, ('', port))
+            else:
+                app_message = write_app_message(username, "TALK", user_message)
+                sender.sendto(app_message, (host, port))
     except error, msg:
         print msg
     finally:
@@ -29,22 +34,31 @@ def run_sender(username, host, port, q):
 def run_receiver(host, port, q):
     receiver = socket(AF_INET, SOCK_DGRAM)
     receiver.bind((host, port))
+    user_list = []
     try:
         while True:
-            if not q.empty():
-                item = q.get(block=False, timeout=None)
-                if item == "quit":
-                    q.task_done()
-                    break
             data, addr = receiver.recvfrom(1024)  # buffer size is 1024 bytes
             sender, command, message = read_app_message(data)
 
             if command == "TALK":
                 print "[{}]: {}".format(sender, message)
             elif command == "JOIN":
+                user_list.append(sender)
                 print "{} joined!".format(sender)
             elif command == "LEAVE":
                 print "{} left!".format(sender)
+            elif command == "QUIT":
+                print "closing chat application..."
+                if not q.empty():
+                    item = q.get(block=False, timeout=None)
+                    if item == "quit":
+                        q.task_done()
+                        break
+            elif command == "WHO":
+                print "List of connected users:"
+                for user in user_list:
+                    print user
+
     except error, msg:
         print msg
     finally:
@@ -54,7 +68,7 @@ def write_app_message(username, message, command):
     return "user: {}\ncommand: {}\nmessage: {}\n\n".format(username,message, command)
 
 def read_app_message(data):
-    search = re.search('user: (\w+)\s*command: (TALK|JOIN|LEAVE)\s*message: ([\w \S]*)\n\n', data)
+    search = re.search('user: (\w+)\s*command: (TALK|JOIN|LEAVE|WHO|QUIT)\s*message: ([\w \S]*)\n\n', data)
     return (search.group(1), search.group(2), search.group(3))
 
 username = raw_input("Please choose a username: ")
