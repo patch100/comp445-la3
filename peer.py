@@ -2,7 +2,6 @@ import re
 from Queue import Queue
 from socket import *
 from threading import Thread
-from time import sleep
 
 def run_sender(username, host, port, q):
     sender = socket(AF_INET, SOCK_DGRAM)
@@ -21,7 +20,7 @@ def run_sender(username, host, port, q):
                 sender.sendto(app_message, ('', port))
                 break
             elif user_message == "/who":
-                app_message = write_app_message(username, "WHO", "")
+                app_message = write_app_message(username, "WHO", "whos this")
                 sender.sendto(app_message, ('', port))
             else:
                 app_message = write_app_message(username, "TALK", user_message)
@@ -31,7 +30,7 @@ def run_sender(username, host, port, q):
     finally:
         sender.close()
 
-def run_receiver(host, port, q):
+def run_receiver(username, host, port, q):
     receiver = socket(AF_INET, SOCK_DGRAM)
     receiver.bind((host, port))
     user_list = []
@@ -44,8 +43,12 @@ def run_receiver(host, port, q):
                 print "[{}]: {}".format(sender, message)
             elif command == "JOIN":
                 user_list.append(sender)
+                if sender != username:
+                    app_message = write_app_message(username, "PING", "PING")
+                    receiver.sendto(app_message, (addr[0], port))
                 print "{} joined!".format(sender)
             elif command == "LEAVE":
+                user_list.remove(sender)
                 print "{} left!".format(sender)
             elif command == "QUIT":
                 print "closing chat application..."
@@ -58,6 +61,8 @@ def run_receiver(host, port, q):
                 print "List of connected users:"
                 for user in user_list:
                     print user
+            elif command == "PING":
+                user_list.append(sender)
 
     except error, msg:
         print msg
@@ -68,14 +73,14 @@ def write_app_message(username, message, command):
     return "user: {}\ncommand: {}\nmessage: {}\n\n".format(username,message, command)
 
 def read_app_message(data):
-    search = re.search('user: (\w+)\s*command: (TALK|JOIN|LEAVE|WHO|QUIT)\s*message: ([\w \S]*)\n\n', data)
+    search = re.search('user: (\w+)\s*command: (TALK|JOIN|LEAVE|WHO|QUIT|PING)\s*message: ([\w \S]*)\n\n', data)
     return (search.group(1), search.group(2), search.group(3))
 
 username = raw_input("Please choose a username: ")
 
 q = Queue()
 
-receiver = Thread(target=run_receiver, args=('', 8081, q))
+receiver = Thread(target=run_receiver, args=(username, '', 8081, q))
 receiver.start()
 
 sender = Thread(target=run_sender, args=(username, '255.255.255.255', 8081, q))
