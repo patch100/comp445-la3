@@ -83,6 +83,7 @@ def run_receiver(username, host, port, q):
                     receiver.sendto(app_message, (addr[0], port))
                 else:
                     app_message = write_app_message(username, "PING", "PING", channel)
+                    user_list.append((sender, addr[0]))
                     receiver.sendto(app_message, (addr[0], port))
                     print "{} joined!".format(sender)
 
